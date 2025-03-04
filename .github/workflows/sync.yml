@@ -2,7 +2,7 @@ name: Sync Raindrop.io to Notion
 
 on:
   schedule:
-    - cron: "*/15 * * * *" # Runs every 15 minutes
+    - cron: "0 5 * * *" # Runs at 5 AM UTC (6 AM CET) every day
   workflow_dispatch: # Allows manual triggering
 
 jobs:
@@ -21,9 +21,62 @@ jobs:
         run: npm ci
 
       - name: Run sync script
+        id: sync
         env:
           RAINDROP_TAG: ${{ secrets.RAINDROP_TAG }}
           RAINDROP_CLIENT_SECRET: ${{ secrets.RAINDROP_CLIENT_SECRET }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
         run: node api/cron.js
+
+      - name: Notify Slack on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+          custom_payload: |
+            {
+              "attachments": [{
+                "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Raindrop.io to Notion Sync Failed* 🚨"
+                    }
+                  },
+                  {
+                    "type": "section",
+                    "fields": [
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Repository:*\n${{ github.repository }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Workflow:*\n${{ github.workflow }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Trigger:*\n${{ github.event_name }}"
+                      },
+                      {
+                        "type": "mrkdwn",
+                        "text": "*Branch:*\n${{ github.ref_name }}"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "*Error Details:*\n```${{ steps.sync.outputs.error }}```"
+                    }
+                  }
+                ]
+              }]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
