@@ -231,6 +231,45 @@ async function getRaindropBookmarks() {
 
 async function addToNotion(bookmark) {
   try {
+    // Prepare the content blocks
+    const contentBlocks = [];
+
+    // Add excerpt if it exists
+    if (bookmark.excerpt) {
+      contentBlocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "text",
+              text: {
+                content: bookmark.excerpt,
+              },
+            },
+          ],
+        },
+      });
+    }
+
+    // Add note if it exists
+    if (bookmark.note) {
+      contentBlocks.push({
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "text",
+              text: {
+                content: `\nNils' thoughts on this:\n${bookmark.note}`,
+              },
+            },
+          ],
+        },
+      });
+    }
+
     await notion.pages.create({
       parent: { database_id: NOTION_DATABASE_ID },
       properties: {
@@ -250,24 +289,7 @@ async function addToNotion(bookmark) {
           multi_select: bookmark.tags.map((tag) => ({ name: tag })),
         },
       },
-      children: bookmark.excerpt
-        ? [
-            {
-              object: "block",
-              type: "paragraph",
-              paragraph: {
-                rich_text: [
-                  {
-                    type: "text",
-                    text: {
-                      content: bookmark.excerpt,
-                    },
-                  },
-                ],
-              },
-            },
-          ]
-        : [],
+      children: contentBlocks,
     });
     console.log(`Added bookmark to Notion: ${bookmark.title}`);
   } catch (error) {
@@ -307,6 +329,10 @@ async function syncBookmarks() {
       console.log("No bookmarks found with the specified tag.");
       return;
     }
+
+    // Debug: Log the first bookmark's full structure
+    console.log("\nDEBUG: First bookmark data structure:");
+    console.log(JSON.stringify(bookmarks[0], null, 2));
 
     // Process each bookmark
     for (const bookmark of bookmarks) {
